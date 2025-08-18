@@ -42,9 +42,14 @@ jobs:
           BASE_IMAGE_NAME="caddy:latest"
           PLUGIN_REPO="caddy-dns/cloudflare"
 
+          echo "--> Checking for dependency updates..."
+
           # 1. Get current upstream versions
           CURRENT_CADDY_DIGEST=$(crane digest $BASE_IMAGE_NAME)
           CURRENT_PLUGIN_VERSION=$(curl -s "https://api.github.com/repos/$PLUGIN_REPO/releases/latest" | jq -r .tag_name)
+
+          echo "Current Caddy Digest: $CURRENT_CADDY_DIGEST"
+          echo "Current Plugin Version: $CURRENT_PLUGIN_VERSION"
 
           # 2. Get versions from the labels of our previously built image
           # The "|| true" pipe prevents the workflow from failing if the image doesn't exist yet (e.g., first run)
@@ -52,15 +57,23 @@ jobs:
           NEEDS_BUILD="false"
 
           if [[ -z "$PREVIOUS_MANIFEST" ]]; then
+            echo "--> No previous image found. A new build is required."
             NEEDS_BUILD="true"
           else
             PREVIOUS_CADDY_DIGEST=$(echo "$PREVIOUS_MANIFEST" | jq -r '.config.Labels."caddy-base-digest" // ""')
             PREVIOUS_PLUGIN_VERSION=$(echo "$PREVIOUS_MANIFEST" | jq -r '.config.Labels."cloudflare-plugin-version" // ""')
 
+            echo "Previous Caddy Digest: $PREVIOUS_CADDY_DIGEST"
+            echo "Previous Plugin Version: $PREVIOUS_PLUGIN_VERSION"
+
             if [[ "$CURRENT_CADDY_DIGEST" != "$PREVIOUS_CADDY_DIGEST" ]]; then
+              echo "--> Caddy base image has been updated. A new build is required."
               NEEDS_BUILD="true"
             elif [[ "$CURRENT_PLUGIN_VERSION" != "$PREVIOUS_PLUGIN_VERSION" ]]; then
+              echo "--> Cloudflare DNS plugin has been updated. A new build is required."
               NEEDS_BUILD="true"
+            else
+              echo "--> Dependencies are up-to-date. Build will be skipped."
             fi
           fi
 
