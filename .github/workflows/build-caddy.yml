@@ -39,17 +39,6 @@ jobs:
           path: versions.txt
           key: caddy-versions-cache
 
-# =======================================================
-# ========= TEMPORARY STEP FOR TESTING - ADD THIS =========
-# =======================================================
-      - name: (TEMP) Simulate an old version
-        if: steps.cache-versions-restore.outputs.cache-hit == 'true'
-        run: |
-          echo "--> Simulating an old dependency version to force a build."
-          echo "PREVIOUS_CADDY_DIGEST=outdated-digest" > versions.txt
-# =======================================================
-
-
       - name: Check for new base image or plugin versions
         id: check-versions
         run: |
