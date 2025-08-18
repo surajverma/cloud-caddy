@@ -28,10 +28,53 @@ jobs:
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Install crane and jq
+        run: |
+          sudo apt-get update && sudo apt-get install -y jq > /dev/null
+          # Pinning crane version for stability
+          curl -sL "https://github.com/google/go-containerregistry/releases/download/v0.19.1/go-containerregistry_Linux_x86_64.tar.gz" | sudo tar -C /usr/local/bin -xz crane
+          echo "Installed crane and jq."
+
+      - name: Check for new base image or plugin versions
+        id: check-versions
+        run: |
+          IMAGE_NAME="ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}"
+          BASE_IMAGE_NAME="caddy:latest"
+          PLUGIN_REPO="caddy-dns/cloudflare"
+
+          # 1. Get current upstream versions
+          CURRENT_CADDY_DIGEST=$(crane digest $BASE_IMAGE_NAME)
+          CURRENT_PLUGIN_VERSION=$(curl -s "https://api.github.com/repos/$PLUGIN_REPO/releases/latest" | jq -r .tag_name)
+
+          # 2. Get versions from the labels of our previously built image
+          # The "|| true" pipe prevents the workflow from failing if the image doesn't exist yet (e.g., first run)
+          PREVIOUS_MANIFEST=$(crane manifest $IMAGE_NAME:latest 2>/dev/null || echo "")
+          NEEDS_BUILD="false"
+
+          if [[ -z "$PREVIOUS_MANIFEST" ]]; then
+            NEEDS_BUILD="true"
+          else
+            PREVIOUS_CADDY_DIGEST=$(echo "$PREVIOUS_MANIFEST" | jq -r '.config.Labels."caddy-base-digest" // ""')
+            PREVIOUS_PLUGIN_VERSION=$(echo "$PREVIOUS_MANIFEST" | jq -r '.config.Labels."cloudflare-plugin-version" // ""')
+
+            if [[ "$CURRENT_CADDY_DIGEST" != "$PREVIOUS_CADDY_DIGEST" ]]; then
+              NEEDS_BUILD="true"
+            elif [[ "$CURRENT_PLUGIN_VERSION" != "$PREVIOUS_PLUGIN_VERSION" ]]; then
+              NEEDS_BUILD="true"
+            fi
+          fi
+
+          # 3. Set outputs for subsequent steps
+          echo "needs_build=$NEEDS_BUILD" >> $GITHUB_OUTPUT
+          echo "caddy_digest=$CURRENT_CADDY_DIGEST" >> $GITHUB_OUTPUT
+          echo "plugin_version=$CURRENT_PLUGIN_VERSION" >> $GITHUB_OUTPUT
+
       - name: Set up Docker Buildx
+        if: steps.check-versions.outputs.needs_build == 'true'
         uses: docker/setup-buildx-action@v3
 
       - name: Build and push Docker image
+        if: steps.check-versions.outputs.needs_build == 'true'
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -40,3 +83,11 @@ jobs:
           tags: ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          # Add labels to store the versions of the dependencies for the next check
+          labels: |
+            caddy-base-digest=${{ steps.check-versions.outputs.caddy_digest }}
+            cloudflare-plugin-version=${{ steps.check-versions.outputs.plugin_version }}
+
+      - name: Print Skip Message
+        if: steps.check-versions.outputs.needs_build == 'false'
+        run: echo "✅ Build and push skipped as no dependency updates were found."
