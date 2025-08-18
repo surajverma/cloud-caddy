@@ -28,12 +28,14 @@ jobs:
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Install crane and jq
+      # FIXED: Split tool installation into separate, more robust steps
+      - name: Install Dependencies
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      - name: Install Crane
         run: |
-          sudo apt-get update && sudo apt-get install -y jq > /dev/null
-          # Pinning crane version for stability
-          curl -sL "https://github.com/google/go-containerregistry/releases/download/v0.19.1/go-containerregistry_Linux_x86_64.tar.gz" | sudo tar -C /usr/local/bin -xz crane
-          echo "Installed crane and jq."
+          curl -sL --fail "https://github.com/google/go-containerregistry/releases/download/v0.19.1/go-containerregistry_Linux_x86_64.tar.gz" | sudo tar -C /usr/local/bin -xz crane
+          echo "Installed crane."
 
       - name: Check for new base image or plugin versions
         id: check-versions
@@ -52,7 +54,6 @@ jobs:
           echo "Current Plugin Version: $CURRENT_PLUGIN_VERSION"
 
           # 2. Get versions from the labels of our previously built image
-          # FIXED: Specify a platform to inspect the manifest of a multi-platform image
           PREVIOUS_MANIFEST=$(crane manifest --platform=linux/amd64 $IMAGE_NAME:latest 2>/dev/null || echo "")
           NEEDS_BUILD="false"
 
