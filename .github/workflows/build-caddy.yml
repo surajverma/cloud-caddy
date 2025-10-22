@@ -3,8 +3,8 @@ name: Build and Push Custom Caddy Image
 on:
   workflow_dispatch:
 
-  schedule:
-    - cron: '30 18 * * 0,3'
+  # schedule:
+  #   - cron: '30 18 * * 0,3'
 
   push:
     branches:
