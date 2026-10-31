@@ -8,12 +8,12 @@ on:
         type: boolean
         default: false
 
-  # Check for new Caddy / plugin releases every Sunday at 18:30 UTC.
+  # Check for new Caddy / plugin releases every day.
   # GitHub disables scheduled workflows after 60 days without repo activity;
   # the "Keep schedule alive" step below re-enables this workflow on every run
   # through the API, so no dummy commits are needed.
   schedule:
-    - cron: '30 18 * * 0'
+    - cron: '30 18 * * *'
 
   push:
     branches:
