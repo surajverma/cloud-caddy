@@ -9,6 +9,9 @@ on:
         default: false
 
   # Check for new Caddy / plugin releases every day.
+  # GitHub disables scheduled workflows after 60 days without repo activity;
+  # the "Keep schedule alive" step below re-enables this workflow on every run
+  # through the API, so no dummy commits are needed.
   schedule:
     - cron: '30 18 * * *'
 
@@ -26,6 +29,7 @@ jobs:
     permissions:
       contents: read
       packages: write
+      actions: write   # needed by the "Keep schedule alive" step
 
     steps:
       - name: Checkout repository
@@ -133,3 +137,11 @@ jobs:
       - name: Print Skip Message
         if: steps.check-versions.outputs.needs_build == 'false'
         run: echo "✅ Build and push skipped as no dependency updates were found."
+
+      # Re-enabling an already enabled workflow is harmless and keeps GitHub
+      # from auto-disabling the schedule when the repo has no commits.
+      - name: Keep schedule alive
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh api -X PUT "repos/${{ github.repository }}/actions/workflows/build-caddy.yml/enable"
